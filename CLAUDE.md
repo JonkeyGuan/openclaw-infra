@@ -86,6 +86,7 @@ kubectl port-forward svc/openclaw 18789:18789 -n <prefix>-openclaw
 | `./scripts/export-config.sh` | Export live `openclaw.json` from running pod |
 | `./scripts/add-agent.sh` | Scaffold and deploy a new agent end-to-end |
 | `./scripts/update-jobs.sh` | Update cron jobs without full re-deploy |
+| `./scripts/deploy-mlflow.sh` | Deploy MLflow Tracking Server (mlflow namespace) |
 | `./scripts/deploy-otelcollector.sh` | Deploy OTEL sidecar collector for MLflow trace export |
 | `./scripts/teardown.sh` | Remove namespace, resources, PVCs |
 | `./scripts/setup-nps-agent.sh` | Deploy NPS Agent (separate namespace) |

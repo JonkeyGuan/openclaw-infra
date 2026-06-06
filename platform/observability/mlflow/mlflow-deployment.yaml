@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mlflow-deployment
+  namespace: mlflow
+  labels:
+    app: mlflow
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: mlflow
+  template:
+    metadata:
+      labels:
+        app: mlflow
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: mlflow
+        image: ghcr.io/mlflow/mlflow:v3.13.0
+        command:
+        - mlflow
+        - server
+        - --backend-store-uri
+        - sqlite:///mlflow-data/mlflow.db
+        - --artifacts-destination
+        - /mlflow-data/artifacts
+        - --host
+        - "0.0.0.0"
+        - --port
+        - "5000"
+        - --allowed-hosts
+        - "*"
+        - --cors-allowed-origins
+        - "*"
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: [ALL]
+        ports:
+        - containerPort: 5000
+          name: tracking
+        volumeMounts:
+        - name: data
+          mountPath: /mlflow-data
+        resources:
+          requests:
+            cpu: 200m
+            memory: 512Mi
+          limits:
+            cpu: "2"
+            memory: 4Gi
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 5000
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 5000
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 2
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: mlflow-data

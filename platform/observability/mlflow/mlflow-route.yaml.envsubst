@@ -1,0 +1,18 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: mlflow-route
+  namespace: mlflow
+  labels:
+    app: mlflow
+spec:
+  host: mlflow.${CLUSTER_DOMAIN}
+  to:
+    kind: Service
+    name: mlflow-service
+    weight: 100
+  port:
+    targetPort: tracking
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

@@ -264,8 +264,34 @@ This repository includes three OTEL collector sidecar configurations:
 
 1. **OpenTelemetry Operator** installed in cluster
 
-2. **MLflow** with OTLP endpoint accessible
+2. **MLflow** deployed (see below) or externally accessible
 
+
+### Deploy MLflow Tracking Server
+
+The repository includes MLflow manifests in `platform/observability/mlflow/`. This deploys a single-replica MLflow server with SQLite backend and PVC storage into the `mlflow` namespace.
+
+```bash
+# OpenShift (includes Route for external UI access)
+./scripts/deploy-mlflow.sh
+
+# Vanilla Kubernetes
+./scripts/deploy-mlflow.sh --k8s
+```
+
+This creates:
+- `mlflow` namespace
+- `mlflow-data` PVC (20Gi) for SQLite DB and artifacts
+- `mlflow-deployment` with `ghcr.io/mlflow/mlflow:v2.21.3`
+- `mlflow-service` on port 5000 (in-cluster endpoint for OTEL sidecars)
+- OpenShift Route for external UI access (OpenShift only)
+
+After deployment, verify:
+```bash
+kubectl get pods -n mlflow
+kubectl port-forward svc/mlflow-service 5000:5000 -n mlflow
+# Open http://localhost:5000 in browser
+```
 
 ### Deploy OTEL Collector Sidecars
 
