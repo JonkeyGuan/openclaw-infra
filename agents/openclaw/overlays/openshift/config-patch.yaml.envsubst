@@ -7,10 +7,9 @@ data:
   openclaw.json: |
     {
       "plugins": {
-        "allow": ["diagnostics-otel", "memory-core"],
+        "allow": ["diagnostics-otel"],
         "entries": {
-          "diagnostics-otel": {"enabled": true},
-          "memory-core": {"enabled": true}
+          "diagnostics-otel": {"enabled": true}
         }
       },
       "gateway": {
@@ -59,13 +58,12 @@ data:
       "tools": {
         "allow": [
           "read", "write", "edit", "exec",
-          "web_search", "web_fetch",
+          "web_search",
           "sessions_list", "sessions_history", "sessions_send", "sessions_spawn", "session_status",
-          "agents_list", "cron",
-          "memory_search", "memory_get"
+          "agents_list", "cron"
         ],
         "deny": [
-          "message", "browser", "canvas", "nodes", "process", "tts", "gateway"
+          "message", "web_fetch", "browser", "canvas", "nodes", "process", "tts", "gateway"
         ],
         "exec": {
             "security": "full",

@@ -87,16 +87,13 @@ data:
           "edit",
           "exec",
           "web_search",
-          "web_fetch",
           "sessions_list",
           "sessions_history",
           "sessions_send",
           "sessions_spawn",
           "session_status",
           "agents_list",
-          "cron",
-          "memory_search",
-          "memory_get"
+          "cron"
         ],
         "deny": [
           "message",
