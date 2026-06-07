@@ -86,6 +86,8 @@ kubectl port-forward svc/openclaw 18789:18789 -n <prefix>-openclaw
 | `./scripts/export-config.sh` | Export live `openclaw.json` from running pod |
 | `./scripts/add-agent.sh` | Scaffold and deploy a new agent end-to-end |
 | `./scripts/update-jobs.sh` | Update cron jobs without full re-deploy |
+| `./scripts/setup-a2a.sh` | Non-interactive OpenClaw + A2A deploy (external vLLM, auto-detect MLflow) |
+| `./scripts/teardown-a2a.sh` | Teardown OpenClaw A2A deployment (keeps Kagenti + MLflow) |
 | `./scripts/deploy-mlflow.sh` | Deploy MLflow Tracking Server (mlflow namespace) |
 | `./scripts/deploy-otelcollector.sh` | Deploy OTEL sidecar collector for MLflow trace export |
 | `./scripts/teardown.sh` | Remove namespace, resources, PVCs |
@@ -249,8 +251,10 @@ All platforms emit OTLP traces to MLflow:
 | `OPENCLAW_NAMESPACE` | Derived: `<prefix>-openclaw` | All K8s resources |
 | `OPENCLAW_GATEWAY_TOKEN` | Auto-generated | Gateway auth |
 | `CLUSTER_DOMAIN` | Auto-detected (OpenShift) or empty | Routes, OAuth redirects |
-| `ANTHROPIC_API_KEY` | User prompt (optional) | Agents using Claude |
+| `MODEL_API_KEY` | User prompt (optional) | API key for model endpoint |
 | `MODEL_ENDPOINT` | User prompt or default | In-cluster model provider URL |
+| `MODEL_NAME` | `.env` (default: `deepseek-r1-distill-qwen-14b`) | Model ID registered in endpoint |
+| `MODEL_DISPLAY_NAME` | `.env` (default: same as MODEL_NAME) | Human-readable model name |
 | `VERTEX_ENABLED` | User prompt (default: `false`) | Google Vertex AI |
 | `VERTEX_PROVIDER` | User prompt (default: `google`) | `google` for Gemini, `anthropic` for Claude via Vertex |
 | `GOOGLE_CLOUD_PROJECT` | User prompt (if Vertex) | GCP project ID |

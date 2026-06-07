@@ -146,7 +146,7 @@ class A2ABridgeHandler(BaseHTTPRequestHandler):
 
         self.send_error(404, "Not found")
 
-    # --- POST: A2A JSON-RPC ---
+    # --- POST: A2A JSON-RPC (with lenient fallback) ---
 
     def do_POST(self):
         content_length = int(self.headers.get("Content-Length", 0))
@@ -164,6 +164,15 @@ class A2ABridgeHandler(BaseHTTPRequestHandler):
         message = params.get("message", {})
         parts = message.get("parts", [])
         user_text = extract_text(parts)
+
+        # Lenient fallback: accept non-JSON-RPC bodies from agents that
+        # don't follow the spec exactly (e.g. {"text": "hi", "to": "bob"})
+        if not user_text and not method:
+            user_text = self._extract_lenient_text(req)
+            if user_text:
+                method = "message/send"
+                rpc_id = rpc_id or "1"
+                self.log_message("Lenient parse: extracted text=%r", user_text[:80])
 
         if not user_text:
             self._send_json(200, a2a_error(rpc_id, -32602, "No text in message parts"))
@@ -208,11 +217,12 @@ class A2ABridgeHandler(BaseHTTPRequestHandler):
             self._send_json(200, a2a_error(rpc_id, -32000, f"Gateway error: {msg}"))
             return
 
-        # Start SSE response
+        # Start SSE response — Connection: close ensures the TCP socket
+        # shuts down after the final COMPLETED event, signalling end-of-stream.
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream")
         self.send_header("Cache-Control", "no-cache")
-        self.send_header("Connection", "keep-alive")
+        self.send_header("Connection", "close")
         self.end_headers()
 
         collected_text = ""
@@ -273,6 +283,32 @@ class A2ABridgeHandler(BaseHTTPRequestHandler):
         line = f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
         self.wfile.write(line.encode())
         self.wfile.flush()
+
+    @staticmethod
+    def _extract_lenient_text(req):
+        """Try common non-JSON-RPC body shapes that agents might send."""
+        # {"text": "hi"} or {"message": "hi"}
+        for key in ("text", "message", "content", "body"):
+            val = req.get(key)
+            if isinstance(val, str) and val.strip():
+                return val.strip()
+            if isinstance(val, dict):
+                for sub in ("text", "content", "body"):
+                    sub_val = val.get(sub)
+                    if isinstance(sub_val, str) and sub_val.strip():
+                        return sub_val.strip()
+        # {"parts": [{"text": "hi"}]}
+        parts = req.get("parts", [])
+        if isinstance(parts, list):
+            texts = []
+            for p in parts:
+                if isinstance(p, dict):
+                    t = p.get("text", "")
+                    if isinstance(t, str) and t.strip():
+                        texts.append(t.strip())
+            if texts:
+                return "\n".join(texts)
+        return None
 
     def _send_json(self, status, obj):
         body = json.dumps(obj).encode()

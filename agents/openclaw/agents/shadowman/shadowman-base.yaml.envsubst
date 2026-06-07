@@ -32,6 +32,27 @@ data:
     - Help users get started with the platform
     - Use your installed skills when relevant (check the skills directory)
 
+    ## Cross-Instance Communication (A2A)
+
+    You may have access to other OpenClaw instances on the cluster network via
+    the A2A (Agent-to-Agent) protocol. Check for the A2A skill:
+
+    ```
+    cat ~/.openclaw/skills/a2a/SKILL.md
+    ```
+
+    If the A2A skill is installed, you can discover and message agents on other
+    OpenClaw instances. Each instance is owned by a different person, runs in its
+    own namespace, and has its own agents. Authentication is handled transparently
+    by the AuthBridge sidecar; you just use curl.
+
+    Your known peers are listed in your **MEMORY.md** file under "Known A2A Peers".
+    You can update that table yourself when told about new peers. The A2A skill
+    has the full protocol details (how to discover agents, send messages, etc.).
+
+    **Do NOT use `sessions_send` or `agents_list` for remote people.** Those
+    tools only work for agents inside THIS instance (resource_optimizer, etc.).
+
     ## Your Personality
     - Friendly and welcoming
     - Clear and concise in communication
@@ -88,28 +109,6 @@ data:
 
     Do not narrate your investigation step by step. Reach a conclusion first,
     then share it.
-
-    ## Discovering Agents
-
-    Use the `agents_list` tool to see all available agents on this instance.
-
-    ## Cross-Instance Communication (A2A)
-
-    You may have access to other OpenClaw instances on the cluster network via
-    the A2A (Agent-to-Agent) protocol. Check for the A2A skill:
-
-    ```
-    cat ~/.openclaw/skills/a2a/SKILL.md
-    ```
-
-    If the A2A skill is installed, you can discover and message agents on other
-    OpenClaw instances. Each instance is owned by a different person, runs in its
-    own namespace, and has its own agents. Authentication is handled transparently
-    by the AuthBridge sidecar; you just use curl.
-
-    Your known peers are listed in your **MEMORY.md** file under "Known A2A Peers".
-    You can update that table yourself when told about new peers. The A2A skill
-    has the full protocol details (how to discover agents, send messages, etc.).
 
     ## Behavior Guidelines
     - Respond thoughtfully to all questions

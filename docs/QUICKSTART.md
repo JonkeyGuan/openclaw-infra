@@ -90,7 +90,7 @@ The script is interactive. It will prompt you for:
 
 1. **Namespace prefix** — your name or team (e.g., `alice`). Creates the namespace `alice-openclaw`.
 2. **Agent name** — a display name for your default agent (e.g., `Atlas`, `Scout`, `Raven`).
-3. **API key** — for your model provider. The script detects `ANTHROPIC_API_KEY` from your environment automatically, or
+3. **API key** — for your model provider. The script detects `MODEL_API_KEY` from your environment automatically, or
 prompts for it.
 
 Everything else is auto-generated (gateway token, OAuth secrets, cookie secrets) and saved to `.env` (git-ignored).
@@ -142,7 +142,7 @@ The setup script supports multiple model providers. You can also change models a
 
 | Provider | Model | How to configure |
 |----------|-------|-----------------|
-| Anthropic | `anthropic/claude-sonnet-4-6` | `ANTHROPIC_API_KEY` env var or interactive prompt |
+| Anthropic | `anthropic/claude-sonnet-4-6` | `MODEL_API_KEY` env var or interactive prompt |
 | OpenAI | `openai/gpt-4o` | Interactive prompt during setup |
 | Google Vertex AI | `google-vertex/gemini-2.5-pro` | `--vertex` flag, requires GCP project |
 | Claude via Vertex | `anthropic-vertex/claude-sonnet-4-6` | `--vertex --vertex-provider anthropic` |

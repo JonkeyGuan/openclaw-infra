@@ -93,10 +93,6 @@ fi
 
 log_info "Setting up Kagenti AIB in namespace: $NAMESPACE"
 
-# Label namespace for webhook injection
-$KUBECTL label namespace "$NAMESPACE" kagenti-enabled=true --overwrite > /dev/null
-log_success "Namespace labeled (kagenti-enabled=true)"
-
 # Internal Keycloak service URL (used by sidecars within the cluster)
 KC_INTERNAL_URL="http://keycloak-service.${KC_NAMESPACE}.svc.cluster.local:8080"
 
@@ -145,6 +141,8 @@ $KUBECTL create configmap authbridge-config -n "$NAMESPACE" \
   --from-literal=ISSUER="${KC_PUBLIC_URL}/realms/${KC_REALM}" \
   --from-literal=TARGET_AUDIENCE=auth-target \
   --from-literal=TARGET_SCOPES="openid auth-target-aud" \
+  --from-literal=KEYCLOAK_URL="$KC_INTERNAL_URL" \
+  --from-literal=KEYCLOAK_REALM="$KC_REALM" \
   --dry-run=client -o yaml | $KUBECTL apply -f -
 log_success "  authbridge-config (issuer: ${KC_PUBLIC_URL}/realms/${KC_REALM})"
 
@@ -302,5 +300,27 @@ if ! $K8S_MODE; then
     -n "$NAMESPACE" --dry-run=client -o yaml | $KUBECTL apply -f - 2>/dev/null || true
   log_success "  SCC RoleBindings (privileged for default + pipeline SAs)"
 fi
+
+# 5. keycloak-admin-secret — Keycloak admin credentials for client-registration sidecar
+# The kagenti chart only creates this for namespaces listed in agentNamespaces[].
+# Since we use the namespace controller path (agentNamespaces=[]), we create it here.
+$KUBECTL create secret generic keycloak-admin-secret -n "$NAMESPACE" \
+  --from-literal=KEYCLOAK_ADMIN_USERNAME="$KC_ADMIN_USER" \
+  --from-literal=KEYCLOAK_ADMIN_PASSWORD="$KC_ADMIN_PASS" \
+  --dry-run=client -o yaml | $KUBECTL apply -f -
+log_success "  keycloak-admin-secret"
+
+# Label namespace for webhook injection (AFTER ConfigMaps exist, to avoid race
+# with Kagenti controller that auto-creates ConfigMaps on label detection)
+$KUBECTL label namespace "$NAMESPACE" kagenti-enabled=true --overwrite > /dev/null
+log_success "Namespace labeled (kagenti-enabled=true)"
+
+# Re-patch authbridge-config after labeling — the Kagenti namespace controller
+# reconciles ConfigMaps on label detection and may overwrite our additions
+# (KEYCLOAK_URL, KEYCLOAK_REALM) that the client-registration sidecar needs.
+sleep 3
+$KUBECTL patch configmap authbridge-config -n "$NAMESPACE" --type merge \
+  -p "{\"data\":{\"KEYCLOAK_URL\":\"$KC_INTERNAL_URL\",\"KEYCLOAK_REALM\":\"$KC_REALM\"}}" > /dev/null 2>&1 || true
+log_success "  authbridge-config patched (KEYCLOAK_URL, KEYCLOAK_REALM)"
 
 log_success "Kagenti AIB ready in $NAMESPACE"

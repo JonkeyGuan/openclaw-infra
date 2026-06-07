@@ -63,8 +63,8 @@ data:
             "apiKey": "fakekey",
             "models": [
               {
-                "id": "openai/gpt-oss-20b",
-                "name": "GPT OSS 20B",
+                "id": "qwen3-14b",
+                "name": "Qwen3 14B",
                 "reasoning": false,
                 "input": ["text"],
                 "cost": {
@@ -93,13 +93,13 @@ data:
           "sessions_send",
           "sessions_spawn",
           "session_status",
-          "message",
           "agents_list",
           "cron",
           "memory_search",
           "memory_get"
         ],
         "deny": [
+          "message",
           "browser",
           "canvas",
           "nodes",
@@ -108,7 +108,7 @@ data:
           "gateway"
         ],
         "exec": {
-          "security": "allowlist",
+          "security": "full",
           "safeBins": ["curl", "jq"],
           "safeBinProfiles": {
             "curl": {"deniedFlags": ["-o", "--output", "-O", "--remote-name", "--upload-file", "-T"]},
@@ -121,7 +121,10 @@ data:
         "defaults": {
           "workspace": "~/.openclaw/workspace",
           "model": {
-            "primary": "local/openai/gpt-oss-20b"
+            "primary": "local/qwen3-14b"
+          },
+          "compaction": {
+            "reserveTokensFloor": 8000
           }
         },
         "list": [

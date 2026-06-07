@@ -216,8 +216,8 @@ fi
 echo ""
 
 # ── Anthropic API key (optional) ──────────────────────────────────────────
-if $_ENV_REUSE && [ -n "${ANTHROPIC_API_KEY+x}" ]; then
-  if [ -n "$ANTHROPIC_API_KEY" ]; then
+if $_ENV_REUSE && [ -n "${MODEL_API_KEY+x}" ]; then
+  if [ -n "$MODEL_API_KEY" ]; then
     log_success "Anthropic API key: (set)"
   else
     log_success "Anthropic API key: (none)"
@@ -226,9 +226,9 @@ else
   log_info "Optional: provide an Anthropic API key for Claude."
   log_info "The local model remains available as fallback."
   echo ""
-  read -sp "  Anthropic API key (leave empty to skip): " ANTHROPIC_API_KEY
+  read -sp "  Anthropic API key (leave empty to skip): " MODEL_API_KEY
   echo ""
-  if [ -n "$ANTHROPIC_API_KEY" ]; then
+  if [ -n "$MODEL_API_KEY" ]; then
     log_success "Anthropic provider configured (Claude Sonnet 4.6)"
   fi
 fi
@@ -304,7 +304,7 @@ MODEL_API="$MODEL_API"
 MODEL_API_KEY="$MODEL_API_KEY"
 MODEL_ID="$MODEL_ID"
 MODEL_NAME="$MODEL_NAME"
-ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY"
+MODEL_API_KEY="$MODEL_API_KEY"
 OTEL_ENABLED="$OTEL_ENABLED"
 OTEL_ENDPOINT="$OTEL_ENDPOINT"
 MLFLOW_OTLP_ENDPOINT="$MLFLOW_OTLP_ENDPOINT"
@@ -334,9 +334,9 @@ envsubst "$ENVSUBST_VARS" < "$EDGE_ROOT/openclaw.json.envsubst" > "$GENERATED_CO
 
 # Inject extra provider if API key was provided
 # The API key is passed via environment variable (not stored in config JSON)
-# so the agent's exec sandbox can't access it — OpenClaw strips ANTHROPIC_API_KEY
+# so the agent's exec sandbox can't access it — OpenClaw strips MODEL_API_KEY
 # from child process environments (see sanitize-env-vars.ts)
-if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
+if [ -n "${MODEL_API_KEY:-}" ]; then
   python3 -c "
 import json
 with open('$GENERATED_CONFIG') as f:
@@ -452,8 +452,8 @@ $(cat "$GENERATED_CONFIG" | indent_yaml)
 CONFIGMAP_EOF
 
 # --- ConfigMap: gateway token + API keys (podman doesn't support Secret in --configmap) ---
-export OPENCLAW_GATEWAY_TOKEN ANTHROPIC_API_KEY
-envsubst '${OPENCLAW_GATEWAY_TOKEN} ${ANTHROPIC_API_KEY}' < "$EDGE_ROOT/openclaw-agent-secret.yaml.envsubst" > "$GENERATED_DIR/openclaw-agent-secret.yaml"
+export OPENCLAW_GATEWAY_TOKEN MODEL_API_KEY
+envsubst '${OPENCLAW_GATEWAY_TOKEN} ${MODEL_API_KEY}' < "$EDGE_ROOT/openclaw-agent-secret.yaml.envsubst" > "$GENERATED_DIR/openclaw-agent-secret.yaml"
 
 # --- ConfigMap: AGENTS.md + agent.json (embed into YAML) ---
 cat > "$GENERATED_DIR/openclaw-agent-agents.yaml" <<AGENTS_EOF

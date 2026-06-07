@@ -169,23 +169,13 @@ else
   export MLFLOW_TLS_INSECURE="true"
 fi
 
-# Agent model priority: Anthropic API > Vertex (anthropic or google) > in-cluster
-# VERTEX_PROVIDER controls which Vertex provider: "anthropic" or "google" (default)
-export VERTEX_PROVIDER="${VERTEX_PROVIDER:-google}"
-if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
-  export DEFAULT_AGENT_MODEL="anthropic/claude-sonnet-4-6"
-elif [ "${VERTEX_ENABLED:-}" = "true" ] && [ "${VERTEX_PROVIDER}" = "anthropic" ]; then
-  export DEFAULT_AGENT_MODEL="anthropic-vertex/claude-sonnet-4-6"
-  log_info "Using Anthropic Vertex (Claude via GCP) as default agent model"
-elif [ "${VERTEX_ENABLED:-}" = "true" ]; then
-  export DEFAULT_AGENT_MODEL="google-vertex/gemini-2.5-pro"
-  log_info "Using Google Vertex (Gemini) as default agent model"
-else
-  export DEFAULT_AGENT_MODEL="local/openai/gpt-oss-20b"
-  log_info "No Anthropic API key or Vertex — agents will use in-cluster model (${MODEL_ENDPOINT})"
-fi
+# Agent model: always use the model from .env (local provider)
+export DEFAULT_AGENT_MODEL="local/${MODEL_NAME}"
 
-ENVSUBST_VARS='${CLUSTER_DOMAIN} ${OPENCLAW_PREFIX} ${OPENCLAW_NAMESPACE} ${OPENCLAW_GATEWAY_TOKEN} ${OPENCLAW_OAUTH_CLIENT_SECRET} ${OPENCLAW_OAUTH_COOKIE_SECRET} ${ANTHROPIC_API_KEY} ${SHADOWMAN_CUSTOM_NAME} ${SHADOWMAN_DISPLAY_NAME} ${MODEL_ENDPOINT} ${DEFAULT_AGENT_MODEL} ${GOOGLE_CLOUD_PROJECT} ${GOOGLE_CLOUD_LOCATION} ${KEYCLOAK_URL} ${KEYCLOAK_REALM} ${KEYCLOAK_ADMIN_USERNAME} ${KEYCLOAK_ADMIN_PASSWORD} ${MLFLOW_TRACKING_URI} ${MLFLOW_EXPERIMENT_ID} ${MLFLOW_TLS_INSECURE}'
+export MODEL_NAME="${MODEL_NAME:-deepseek-r1-distill-qwen-14b}"
+export MODEL_DISPLAY_NAME="${MODEL_DISPLAY_NAME:-${MODEL_NAME}}"
+
+ENVSUBST_VARS='${CLUSTER_DOMAIN} ${OPENCLAW_PREFIX} ${OPENCLAW_NAMESPACE} ${OPENCLAW_GATEWAY_TOKEN} ${OPENCLAW_OAUTH_CLIENT_SECRET} ${OPENCLAW_OAUTH_COOKIE_SECRET} ${MODEL_API_KEY} ${SHADOWMAN_CUSTOM_NAME} ${SHADOWMAN_DISPLAY_NAME} ${MODEL_ENDPOINT} ${MODEL_NAME} ${MODEL_DISPLAY_NAME} ${DEFAULT_AGENT_MODEL} ${GOOGLE_CLOUD_PROJECT} ${GOOGLE_CLOUD_LOCATION} ${KEYCLOAK_URL} ${KEYCLOAK_REALM} ${KEYCLOAK_ADMIN_USERNAME} ${KEYCLOAK_ADMIN_PASSWORD} ${MLFLOW_TRACKING_URI} ${MLFLOW_EXPERIMENT_ID} ${MLFLOW_TLS_INSECURE}'
 
 for tpl in $(find "$REPO_ROOT/agents/openclaw/agents" -name '*.envsubst'); do
   rel="${tpl#$REPO_ROOT/}"

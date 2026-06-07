@@ -3,41 +3,45 @@
 
 ## Architecture Overview
 
-The observability stack uses **sidecar-based OTEL collectors** that send traces directly to MLflow:
+The observability stack uses **sidecar-based OTEL collectors** that send traces to MLflow
+via an intermediate OTEL collector (kagenti or standalone):
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│ Pod: openclaw-xxxxxxxxx-xxxxx (openclaw namespace)              │
+│ Pod: openclaw (openclaw namespace)                              │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
 │  ┌──────────────────┐         ┌──────────────────────────────┐  │
 │  │  Gateway         │  OTLP   │  OTEL Collector Sidecar      │  │
-│  │  Container       │──────▶  │  (auto-injected)             │  │
-│  │                  │  :4318  │                              │  │
-│  │  diagnostics-    │         │  - Batches traces            │  │
-│  │  otel plugin     │         │  - Adds metadata             │  │
-│  └──────────────────┘         │  - Exports to MLflow         │  │
+│  │  Container       │──────▶  │  (native sidecar, auto-      │  │
+│  │                  │  :4318  │   injected by OTel Operator)  │  │
+│  │  diagnostics-    │         │                              │  │
+│  │  otel plugin     │         │  - Batches traces            │  │
+│  └──────────────────┘         │  - Fixes orphan spans        │  │
 │                               └──────────────────────────────┘  │
 │                                         │                       │
 └─────────────────────────────────────────┼───────────────────────┘
-                                          │
-                                          ▼ OTLP/HTTP (in-cluster)
+                                          │ OTLP/gRPC :4317
+                                          │ (bypasses kagenti envoy)
+                                          ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ OTEL Collector (kagenti-system or openclaw namespace)           │
+├─────────────────────────────────────────────────────────────────┤
+│  Forwards traces to MLflow via OTLP/HTTP                        │
+└────────────────────────────┬────────────────────────────────────┘
+                             │ OTLP/HTTP :5000/v1/traces
+                             ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │ MLflow Tracking Server (mlflow namespace)                       │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
 │  Service: mlflow-service.mlflow.svc.cluster.local:5000          │
-│  Endpoint: /v1/traces (OTLP standard path)                      │
-│                                                                 │
-│  Features:                                                      │
-│  ✅ Trace ingestion via OTLP                                    │
-│  ✅ Automatic span→trace conversion                             │
-│  ✅ LLM-specific trace metadata                                 │
-│  ✅ Request/Response column population                          │
-│  ✅ Session grouping for multi-turn conversations               │
-│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
+
+When A2A/Kagenti is enabled, the sidecar exports via OTLP gRPC (port 4317) to
+the kagenti OTEL collector. Port 4317 is excluded from kagenti's envoy proxy
+interception, avoiding auth bridge interference. Without kagenti, a standalone
+collector is deployed in the openclaw namespace.
 
 
 ## Why Sidecars?
@@ -99,15 +103,21 @@ The observability stack uses **sidecar-based OTEL collectors** that send traces 
 **Configuration** (`platform/observability/openclaw-otel-sidecar.yaml.envsubst`):
 
 ```yaml
-apiVersion: opentelemetry.io/v1alpha1
+apiVersion: opentelemetry.io/v1beta1
 kind: OpenTelemetryCollector
 metadata:
   name: openclaw-sidecar
   namespace: ${OPENCLAW_NAMESPACE}
 spec:
   mode: sidecar
-
-  config: |
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+  config:
     receivers:
       otlp:
         protocols:
@@ -115,54 +125,40 @@ spec:
             endpoint: 127.0.0.1:4317
           http:
             endpoint: 127.0.0.1:4318
-
     processors:
-      batch:
-        timeout: 5s
-        send_batch_size: 100
-
       memory_limiter:
         check_interval: 1s
         limit_mib: 256
         spike_limit_mib: 64
-
-      resource:
-        attributes:
-          - key: service.namespace
-            value: ${OPENCLAW_NAMESPACE}
-            action: upsert
-          - key: deployment.environment
-            value: production
-            action: upsert
-
+      batch:
+        send_batch_size: 100
+        timeout: 5s
+      transform/fix-orphan:
+        trace_statements:
+          - context: span
+            statements:
+              - set(parent_span_id, SpanID(0x0000000000000000)) where name == "openclaw.harness.run"
     exporters:
-      # Uses in-cluster service URL to avoid DNS rebinding rejection on the external route
-      otlphttp:
-        endpoint: http://mlflow-service.mlflow.svc.cluster.local:5000
-        headers:
-          x-mlflow-experiment-id: "4"
-          x-mlflow-workspace: "openclaw"
-        tls:
-          insecure: true
-
       debug:
         verbosity: detailed
-
+      otlp:
+        endpoint: ${OTEL_COLLECTOR_ENDPOINT}
+        tls:
+          insecure: true
     service:
       pipelines:
         traces:
           receivers: [otlp]
-          processors: [memory_limiter, resource, batch]
-          exporters: [otlphttp, debug]
+          processors: [memory_limiter, transform/fix-orphan, batch]
+          exporters: [otlp, debug]
 ```
 
 **Key points**:
-- Listens on `localhost:4317` (gRPC) and `localhost:4318` (HTTP), only accessible within pod
-- Batches traces for efficiency
-- Adds namespace and environment metadata
-- Uses in-cluster service URL (`mlflow-service.mlflow.svc:5000`) — avoids DNS rebinding rejection from MLflow's `HostValidationMiddleware` when going through the external route
-- Path `/v1/traces` is auto-appended by the OTLP exporter
-- Custom headers for MLflow experiment/workspace routing
+- Injected as a **native sidecar** (init container with `restartPolicy: Always`)
+- Listens on `localhost:4317/4318`, only accessible within the pod
+- `transform/fix-orphan` fixes OpenClaw's orphaned `openclaw.harness.run` spans (clears their parent_span_id pointing to never-exported parents, which otherwise show as "In progress" in MLflow)
+- Exports via **OTLP gRPC** (port 4317) to an intermediate collector — port 4317 is excluded from kagenti's envoy proxy interception (`OUTBOUND_PORTS_EXCLUDE`)
+- Resources are required when namespace has a ResourceQuota
 ### 3. vLLM OTEL Collector Sidecar (Optional)
 
 **Same sidecar pattern** as OpenClaw, deployed in the vLLM namespace.

@@ -41,44 +41,34 @@ data:
           "local": {
             "baseUrl": "${MODEL_ENDPOINT}",
             "api": "openai-completions",
-            "apiKey": "fakekey",
+            "apiKey": "${MODEL_API_KEY}",
             "models": [
               {
-                "id": "openai/gpt-oss-20b",
-                "name": "GPT OSS 20B",
-                "reasoning": false,
+                "id": "${MODEL_NAME}",
+                "name": "${MODEL_DISPLAY_NAME}",
+                "reasoning": true,
                 "input": ["text"],
                 "cost": {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0},
                 "contextWindow": 32768,
                 "maxTokens": 8192
               }
             ]
-          },
-          "anthropic": {
-            "baseUrl": "https://api.anthropic.com",
-            "api": "anthropic-messages",
-            "models": []
-          },
-          "anthropic-vertex": {
-            "baseUrl": "https://${GOOGLE_CLOUD_LOCATION}-aiplatform.googleapis.com",
-            "api": "anthropic-messages",
-            "models": [
-              {
-                "id": "claude-sonnet-4-6",
-                "name": "Claude Sonnet 4.6 (Vertex)",
-                "reasoning": true,
-                "input": ["text", "image"],
-                "cost": {"input": 3, "output": 15, "cacheRead": 0.3, "cacheWrite": 3.75},
-                "contextWindow": 200000,
-                "maxTokens": 16384
-              }
-            ]
           }
         }
       },
       "tools": {
+        "allow": [
+          "read", "write", "edit", "exec",
+          "web_search", "web_fetch",
+          "sessions_list", "sessions_history", "sessions_send", "sessions_spawn", "session_status",
+          "agents_list", "cron",
+          "memory_search", "memory_get"
+        ],
+        "deny": [
+          "message", "browser", "canvas", "nodes", "process", "tts", "gateway"
+        ],
         "exec": {
-            "security": "allowlist",
+            "security": "full",
             "safeBins": ["cat", "curl", "jq"],
             "safeBinProfiles": {
               "cat": {},
@@ -95,7 +85,10 @@ data:
       "agents": {
         "defaults": {
           "workspace": "~/.openclaw/workspace",
-          "model": {"primary": "${DEFAULT_AGENT_MODEL}"}
+          "model": {"primary": "${DEFAULT_AGENT_MODEL}"},
+          "compaction": {
+            "reserveTokensFloor": 8000
+          }
         },
         "list": [
           {

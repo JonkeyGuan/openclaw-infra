@@ -75,6 +75,9 @@
     "defaults": {
       "model": {
         "primary": "default/${MODEL_ID}"
+      },
+      "compaction": {
+        "reserveTokensFloor": 8000
       }
     },
     "list": [

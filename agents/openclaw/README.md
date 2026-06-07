@@ -35,7 +35,7 @@ mkdir -p "$GENERATED_DIR"
 rsync -a --exclude='*.envsubst' ../../agents/ "$GENERATED_DIR/agents/"
 rsync -a --exclude='*.envsubst' ../../platform/ "$GENERATED_DIR/platform/"
 
-ENVSUBST_VARS='${CLUSTER_DOMAIN} ${OPENCLAW_PREFIX} ${OPENCLAW_NAMESPACE} ${OPENCLAW_GATEWAY_TOKEN} ${OPENCLAW_OAUTH_CLIENT_SECRET} ${OPENCLAW_OAUTH_COOKIE_SECRET} ${ANTHROPIC_API_KEY} ${SHADOWMAN_CUSTOM_NAME} ${SHADOWMAN_DISPLAY_NAME} ${MODEL_ENDPOINT} ${DEFAULT_AGENT_MODEL} ${GOOGLE_CLOUD_PROJECT} ${GOOGLE_CLOUD_LOCATION}'
+ENVSUBST_VARS='${CLUSTER_DOMAIN} ${OPENCLAW_PREFIX} ${OPENCLAW_NAMESPACE} ${OPENCLAW_GATEWAY_TOKEN} ${OPENCLAW_OAUTH_CLIENT_SECRET} ${OPENCLAW_OAUTH_COOKIE_SECRET} ${MODEL_API_KEY} ${SHADOWMAN_CUSTOM_NAME} ${SHADOWMAN_DISPLAY_NAME} ${MODEL_ENDPOINT} ${DEFAULT_AGENT_MODEL} ${GOOGLE_CLOUD_PROJECT} ${GOOGLE_CLOUD_LOCATION}'
 for tpl in $(find ../../agents ../../platform -name '*.envsubst'); do
   rel="${tpl#../../}"
   out="$GENERATED_DIR/${rel%.envsubst}"
@@ -65,7 +65,7 @@ export SHADOWMAN_DISPLAY_NAME="Shadowman"
 
 export CLUSTER_DOMAIN="" OPENCLAW_OAUTH_CLIENT_SECRET=""
 export OPENCLAW_OAUTH_COOKIE_SECRET=""
-export ANTHROPIC_API_KEY=""
+export MODEL_API_KEY=""
 
 # 2. Build generated/ directory (see OpenShift section above for full envsubst setup)
 # ... same rsync + envsubst loop as above ...

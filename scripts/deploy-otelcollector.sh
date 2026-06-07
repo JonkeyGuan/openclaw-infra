@@ -71,13 +71,8 @@ log_warn()    { echo -e "${YELLOW}⚠${NC} $1"; }
 log_error()   { echo -e "${RED}✗${NC} $1"; }
 
 GENERATED_DIR="$REPO_ROOT/generated"
-OTEL_TEMPLATE="$REPO_ROOT/platform/observability/openclaw-otel-sidecar.yaml.envsubst"
-OTEL_YAML="$GENERATED_DIR/platform/observability/openclaw-otel-sidecar.yaml"
-
-if [ ! -f "$OTEL_TEMPLATE" ]; then
-  log_error "OTEL sidecar template not found: $OTEL_TEMPLATE"
-  exit 1
-fi
+OTEL_SIDECAR_TEMPLATE="$REPO_ROOT/platform/observability/openclaw-otel-sidecar.yaml.envsubst"
+OTEL_STANDALONE_TEMPLATE="$REPO_ROOT/platform/observability/openclaw-otel-collector.yaml.envsubst"
 
 echo ""
 echo "============================================"
@@ -110,41 +105,48 @@ if ! $KUBECTL get namespace "$OPENCLAW_NAMESPACE" &>/dev/null; then
   exit 1
 fi
 
-# MLflow tracking URI
-if [ -z "${MLFLOW_TRACKING_URI:-}" ]; then
-  echo ""
-  log_info "MLflow tracking URI (where traces are exported):"
-  log_info "  Example: https://mlflow-openclaw.apps.example.com"
-  read -p "  MLflow URI: " MLFLOW_TRACKING_URI
-  if [ -z "$MLFLOW_TRACKING_URI" ]; then
-    log_error "MLflow URI is required for the OTEL collector"
-    exit 1
+# Auto-detect OTEL collector endpoint
+if [ -z "${OTEL_COLLECTOR_ENDPOINT:-}" ]; then
+  if $KUBECTL get svc otel-collector -n kagenti-system &>/dev/null; then
+    OTEL_COLLECTOR_ENDPOINT="otel-collector.kagenti-system.svc.cluster.local:4317"
+    log_success "Detected kagenti OTEL collector: $OTEL_COLLECTOR_ENDPOINT"
+  else
+    # No kagenti collector — need MLflow config for standalone collector
+    if [ -z "${MLFLOW_TRACKING_URI:-}" ]; then
+      echo ""
+      log_info "No kagenti collector found. MLflow URI required for standalone collector."
+      read -p "  MLflow URI: " MLFLOW_TRACKING_URI
+      if [ -z "$MLFLOW_TRACKING_URI" ]; then
+        log_error "MLflow URI is required"
+        exit 1
+      fi
+    fi
+    MLFLOW_EXPERIMENT_ID="${MLFLOW_EXPERIMENT_ID:-0}"
+    if [[ "$MLFLOW_TRACKING_URI" =~ ^https:// ]]; then
+      MLFLOW_TLS_INSECURE="false"
+    else
+      MLFLOW_TLS_INSECURE="true"
+    fi
+    log_info "Deploying standalone collector..."
+    STANDALONE_YAML="$GENERATED_DIR/platform/observability/openclaw-otel-collector.yaml"
+    mkdir -p "$(dirname "$STANDALONE_YAML")"
+    export MLFLOW_TRACKING_URI MLFLOW_EXPERIMENT_ID MLFLOW_TLS_INSECURE
+    STANDALONE_VARS='${OPENCLAW_NAMESPACE} ${MLFLOW_TRACKING_URI} ${MLFLOW_EXPERIMENT_ID} ${MLFLOW_TLS_INSECURE}'
+    envsubst "$STANDALONE_VARS" < "$OTEL_STANDALONE_TEMPLATE" > "$STANDALONE_YAML"
+    $KUBECTL apply -f "$STANDALONE_YAML"
+    OTEL_COLLECTOR_ENDPOINT="otel-collector.${OPENCLAW_NAMESPACE}.svc.cluster.local:4317"
+    log_success "Standalone collector deployed: $OTEL_COLLECTOR_ENDPOINT"
   fi
 fi
-log_success "MLflow URI: $MLFLOW_TRACKING_URI"
 
-# MLflow experiment ID
-if [ -z "${MLFLOW_EXPERIMENT_ID:-}" ] || [ "${MLFLOW_EXPERIMENT_ID}" = "0" ]; then
-  read -p "  MLflow experiment ID [0]: " MLFLOW_EXPERIMENT_ID
-  MLFLOW_EXPERIMENT_ID="${MLFLOW_EXPERIMENT_ID:-0}"
-fi
-log_success "Experiment ID: $MLFLOW_EXPERIMENT_ID"
+export OPENCLAW_NAMESPACE OTEL_COLLECTOR_ENDPOINT
 
-# Derive TLS setting from URI scheme
-if [[ "$MLFLOW_TRACKING_URI" =~ ^https:// ]]; then
-  MLFLOW_TLS_INSECURE="false"
-else
-  MLFLOW_TLS_INSECURE="true"
-fi
-
-export OPENCLAW_NAMESPACE MLFLOW_TRACKING_URI MLFLOW_EXPERIMENT_ID MLFLOW_TLS_INSECURE
-echo ""
-
-# Run envsubst
-log_info "Generating OTEL collector manifest..."
+# Run envsubst on sidecar template
+log_info "Generating OTEL sidecar manifest..."
+OTEL_YAML="$GENERATED_DIR/platform/observability/openclaw-otel-sidecar.yaml"
 mkdir -p "$(dirname "$OTEL_YAML")"
-ENVSUBST_VARS='${OPENCLAW_NAMESPACE} ${MLFLOW_TRACKING_URI} ${MLFLOW_EXPERIMENT_ID} ${MLFLOW_TLS_INSECURE}'
-envsubst "$ENVSUBST_VARS" < "$OTEL_TEMPLATE" > "$OTEL_YAML"
+ENVSUBST_VARS='${OPENCLAW_NAMESPACE} ${OTEL_COLLECTOR_ENDPOINT}'
+envsubst "$ENVSUBST_VARS" < "$OTEL_SIDECAR_TEMPLATE" > "$OTEL_YAML"
 log_success "Generated $(basename "$OTEL_YAML")"
 
 # Apply
@@ -174,9 +176,7 @@ echo ""
 echo "============================================"
 echo "  OTEL Collector Ready"
 echo ""
-echo "  Traces:      $MLFLOW_TRACKING_URI"
-echo "  Experiment:  $MLFLOW_EXPERIMENT_ID"
-echo "  TLS verify:  $([ "$MLFLOW_TLS_INSECURE" = "false" ] && echo "yes" || echo "no (HTTP)")"
+echo "  Collector:   $OTEL_COLLECTOR_ENDPOINT"
 echo "  Namespace:   $OPENCLAW_NAMESPACE"
 echo "============================================"
 echo ""

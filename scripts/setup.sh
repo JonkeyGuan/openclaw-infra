@@ -255,7 +255,7 @@ if $_ENV_REUSE; then
   OPENCLAW_GATEWAY_TOKEN="${OPENCLAW_GATEWAY_TOKEN:-}"
   OPENCLAW_OAUTH_CLIENT_SECRET="${OPENCLAW_OAUTH_CLIENT_SECRET:-}"
   OPENCLAW_OAUTH_COOKIE_SECRET="${OPENCLAW_OAUTH_COOKIE_SECRET:-}"
-  ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-}"
+  MODEL_API_KEY="${MODEL_API_KEY:-}"
   MODEL_ENDPOINT="${MODEL_ENDPOINT:-}"
   VERTEX_ENABLED="${VERTEX_ENABLED:-false}"
   VERTEX_PROVIDER="${VERTEX_PROVIDER:-google}"
@@ -296,14 +296,14 @@ else
 
   # Prompt for Anthropic API key (optional — for agents that use Anthropic models)
   # Pick up from environment if already set
-  if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
+  if [ -n "${MODEL_API_KEY:-}" ]; then
     log_success "Anthropic API key detected from environment"
   else
     log_info "Anthropic API key (optional, for agents using Claude models):"
-    read -sp "  API key (leave empty to skip): " ANTHROPIC_API_KEY
+    read -sp "  API key (leave empty to skip): " MODEL_API_KEY
     echo
-    ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
-    if [ -n "$ANTHROPIC_API_KEY" ]; then
+    MODEL_API_KEY=${MODEL_API_KEY:-}
+    if [ -n "$MODEL_API_KEY" ]; then
       log_success "Anthropic API key set"
     else
       log_info "Skipped — agents will use in-cluster model only"
@@ -442,7 +442,7 @@ OPENCLAW_NAMESPACE=$OPENCLAW_NAMESPACE
 OPENCLAW_GATEWAY_TOKEN=$OPENCLAW_GATEWAY_TOKEN
 OPENCLAW_OAUTH_CLIENT_SECRET=$OPENCLAW_OAUTH_CLIENT_SECRET
 OPENCLAW_OAUTH_COOKIE_SECRET=$OPENCLAW_OAUTH_COOKIE_SECRET
-ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY
+MODEL_API_KEY=$MODEL_API_KEY
 MODEL_ENDPOINT=$MODEL_ENDPOINT
 VERTEX_ENABLED=$VERTEX_ENABLED
 VERTEX_PROVIDER=$VERTEX_PROVIDER
@@ -506,7 +506,7 @@ fi
 # Agent model priority: Anthropic API > Vertex (anthropic or google) > in-cluster
 # VERTEX_PROVIDER controls which Vertex provider: "anthropic" or "google" (default)
 export VERTEX_PROVIDER="${VERTEX_PROVIDER:-google}"
-if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
+if [ -n "${MODEL_API_KEY:-}" ]; then
   export DEFAULT_AGENT_MODEL="anthropic/claude-sonnet-4-6"
 elif [ "${VERTEX_ENABLED:-}" = "true" ] && [ "${VERTEX_PROVIDER}" = "anthropic" ]; then
   export DEFAULT_AGENT_MODEL="anthropic-vertex/claude-sonnet-4-6"
@@ -515,12 +515,16 @@ elif [ "${VERTEX_ENABLED:-}" = "true" ]; then
   export DEFAULT_AGENT_MODEL="google-vertex/gemini-2.5-pro"
   log_info "Using Google Vertex (Gemini) as default agent model"
 else
-  export DEFAULT_AGENT_MODEL="local/openai/gpt-oss-20b"
+  export DEFAULT_AGENT_MODEL="local/${MODEL_NAME}"
   log_info "No Anthropic API key or Vertex — agents will use in-cluster model (${MODEL_ENDPOINT})"
 fi
 
+# Model name defaults (configurable via .env)
+export MODEL_NAME="${MODEL_NAME:-deepseek-r1-distill-qwen-14b}"
+export MODEL_DISPLAY_NAME="${MODEL_DISPLAY_NAME:-${MODEL_NAME}}"
+
 # Explicit variable list to protect {agentId} and other non-env placeholders
-ENVSUBST_VARS='${CLUSTER_DOMAIN} ${OPENCLAW_PREFIX} ${OPENCLAW_NAMESPACE} ${OPENCLAW_GATEWAY_TOKEN} ${OPENCLAW_OAUTH_CLIENT_SECRET} ${OPENCLAW_OAUTH_COOKIE_SECRET} ${ANTHROPIC_API_KEY} ${SHADOWMAN_CUSTOM_NAME} ${SHADOWMAN_DISPLAY_NAME} ${MODEL_ENDPOINT} ${DEFAULT_AGENT_MODEL} ${GOOGLE_CLOUD_PROJECT} ${GOOGLE_CLOUD_LOCATION} ${TELEGRAM_ALLOW_FROM} ${MLFLOW_TRACKING_URI} ${MLFLOW_EXPERIMENT_ID} ${MLFLOW_TLS_INSECURE} ${OPENCLAW_IMAGE}'
+ENVSUBST_VARS='${CLUSTER_DOMAIN} ${OPENCLAW_PREFIX} ${OPENCLAW_NAMESPACE} ${OPENCLAW_GATEWAY_TOKEN} ${OPENCLAW_OAUTH_CLIENT_SECRET} ${OPENCLAW_OAUTH_COOKIE_SECRET} ${MODEL_API_KEY} ${SHADOWMAN_CUSTOM_NAME} ${SHADOWMAN_DISPLAY_NAME} ${MODEL_ENDPOINT} ${MODEL_NAME} ${MODEL_DISPLAY_NAME} ${DEFAULT_AGENT_MODEL} ${GOOGLE_CLOUD_PROJECT} ${GOOGLE_CLOUD_LOCATION} ${TELEGRAM_ALLOW_FROM} ${MLFLOW_TRACKING_URI} ${MLFLOW_EXPERIMENT_ID} ${MLFLOW_TLS_INSECURE} ${OPENCLAW_IMAGE}'
 
 # Build generated/ directory: mirror source tree with templates processed
 GENERATED_DIR="$REPO_ROOT/generated"
@@ -785,14 +789,20 @@ fi
 echo ""
 
 # Deploy OTEL sidecar collector (requires OpenTelemetry Operator)
+DEPLOY_OTEL=false
 if [ "${MLFLOW_TRACKING_URI:-}" != "" ]; then
+  DEPLOY_OTEL=true
+elif $KUBECTL get svc otel-collector -n kagenti-system &>/dev/null 2>&1; then
+  DEPLOY_OTEL=true
+fi
+if $DEPLOY_OTEL; then
   log_info "Deploying OTEL sidecar collector..."
   OTEL_ARGS=(--env-file "$ENV_FILE" --no-restart)
   if $K8S_MODE; then OTEL_ARGS+=(--k8s); fi
   "$SCRIPT_DIR/deploy-otelcollector.sh" "${OTEL_ARGS[@]}" || \
     log_warn "OTEL collector deployment failed — run scripts/deploy-otelcollector.sh later"
 else
-  log_info "Skipping OTEL sidecar (no MLflow URI configured)"
+  log_info "Skipping OTEL sidecar (no MLflow URI or kagenti collector detected)"
   log_info "  Deploy later: scripts/deploy-otelcollector.sh --env-file $ENV_FILE"
 fi
 echo ""

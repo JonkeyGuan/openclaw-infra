@@ -75,7 +75,7 @@ fi
 log_success "Model endpoint: $NPS_MODEL_ENDPOINT"
 
 # Model name
-NPS_MODEL_NAME="${OPENAI_MODEL_NAME:-openai/gpt-oss-20b}"
+NPS_MODEL_NAME="${OPENAI_MODEL_NAME:-qwen3-14b}"
 read -p "  Model name [${NPS_MODEL_NAME}]: " CUSTOM_MODEL
 if [ -n "$CUSTOM_MODEL" ]; then
   NPS_MODEL_NAME="$CUSTOM_MODEL"

@@ -65,8 +65,8 @@ data:
             "apiKey": "fakekey",
             "models": [
               {
-                "id": "openai/gpt-oss-20b",
-                "name": "GPT OSS 20B",
+                "id": "qwen3-14b",
+                "name": "Qwen3 14B",
                 "reasoning": false,
                 "input": ["text"],
                 "cost": {
@@ -79,29 +79,7 @@ data:
                 "maxTokens": 8192
               }
             ]
-          },
-          "anthropic": {
-            "baseUrl": "https://api.anthropic.com",
-            "api": "anthropic-messages",
-            "apiKey": "${ANTHROPIC_API_KEY}",
-            "models": [
-              {
-                "id": "claude-sonnet-4-6",
-                "name": "Claude Sonnet 4.6",
-                "reasoning": true,
-                "input": ["text", "image"],
-                "contextWindow": 200000,
-                "maxTokens": 64000
-              }
-            ]
           }
-        }
-      },
-      "skills": {
-        "load": {
-          "extraDirs": ["~/.openclaw/skills"],
-          "watch": true,
-          "watchDebounceMs": 1000
         }
       },
       "tools": {
@@ -116,11 +94,11 @@ data:
           "sessions_send",
           "sessions_spawn",
           "session_status",
-          "message",
           "agents_list",
           "cron"
         ],
         "deny": [
+          "message",
           "browser",
           "canvas",
           "nodes",
@@ -130,7 +108,7 @@ data:
           "gateway"
         ],
         "exec": {
-          "security": "allowlist",
+          "security": "full",
           "safeBins": ["cat", "curl", "jq"],
           "safeBinProfiles": {
             "cat": {},
@@ -148,7 +126,10 @@ data:
         "defaults": {
           "workspace": "~/.openclaw/workspace",
           "model": {
-            "primary": "local/openai/gpt-oss-20b"
+            "primary": "local/qwen3-14b"
+          },
+          "compaction": {
+            "reserveTokensFloor": 8000
           }
         },
         "list": [

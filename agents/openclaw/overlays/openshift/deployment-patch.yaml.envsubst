@@ -6,6 +6,10 @@ metadata:
 spec:
   template:
     spec:
+      initContainers:
+      - name: init-config
+        securityContext:
+          runAsUser: 0
       containers:
       - name: oauth-proxy
         args:

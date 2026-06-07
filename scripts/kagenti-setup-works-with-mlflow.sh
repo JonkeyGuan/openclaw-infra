@@ -380,7 +380,9 @@ _ensure_cert_manager_operator() {
 
   $KUBECTL create namespace "$CERT_MANAGER_OPERATOR_NAMESPACE" --dry-run=client -o yaml | $KUBECTL apply -f - >/dev/null
 
-  if ! $KUBECTL get operatorgroup openshift-cert-manager-operatorgroup -n "$CERT_MANAGER_OPERATOR_NAMESPACE" &>/dev/null 2>&1; then
+  # Only create OperatorGroup if none exist — multiple OGs cause CSV failure
+  _existing_og_count=$($KUBECTL get operatorgroup -n "$CERT_MANAGER_OPERATOR_NAMESPACE" -o name 2>/dev/null | wc -l | tr -d ' ')
+  if [ "$_existing_og_count" -eq 0 ]; then
     $KUBECTL apply -f - <<EOF >/dev/null
 apiVersion: operators.coreos.com/v1
 kind: OperatorGroup
@@ -421,7 +423,8 @@ _ensure_community_cert_manager_operator() {
 
   $KUBECTL create namespace "$CERT_MANAGER_NAMESPACE" --dry-run=client -o yaml | $KUBECTL apply -f - >/dev/null
 
-  if ! $KUBECTL get operatorgroup cert-manager -n "$CERT_MANAGER_NAMESPACE" &>/dev/null 2>&1; then
+  _existing_og_count=$($KUBECTL get operatorgroup -n "$CERT_MANAGER_NAMESPACE" -o name 2>/dev/null | wc -l | tr -d ' ')
+  if [ "$_existing_og_count" -eq 0 ]; then
     $KUBECTL apply -f - <<EOF >/dev/null
 apiVersion: operators.coreos.com/v1
 kind: OperatorGroup
@@ -1209,9 +1212,54 @@ fi
 echo ""
 
 # ============================================================================
-# Step 7: Deploy MLflow (standalone, lifecycle-decoupled from Kagenti)
+# Step 7: Install OpenTelemetry Operator (for OTEL sidecar collector)
 # ============================================================================
-log_info "Step 7: Deploy MLflow Tracking Server"
+log_info "Step 7: Install OpenTelemetry Operator"
+
+_otel_has_crd=$($KUBECTL get crd opentelemetrycollectors.opentelemetry.io &>/dev/null 2>&1 && echo true || echo false)
+_otel_has_sub=$($KUBECTL get subscription opentelemetry-product -n openshift-operators &>/dev/null 2>&1 && echo true || echo false)
+
+if $_otel_has_crd && $_otel_has_sub; then
+  log_info "OpenTelemetry Operator already installed — skipping"
+else
+  if $_otel_has_crd && ! $_otel_has_sub; then
+    log_warn "OpenTelemetry CRD exists but subscription is missing — reinstalling operator"
+  fi
+  log_info "Installing Red Hat OpenTelemetry Operator..."
+  run_cmd $KUBECTL apply -f - <<'OTEL_EOF'
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: opentelemetry-product
+  namespace: openshift-operators
+spec:
+  channel: stable
+  installPlanApproval: Automatic
+  name: opentelemetry-product
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace
+OTEL_EOF
+  log_success "OpenTelemetry Operator subscription created"
+  log_info "Waiting for CRD registration..."
+  _otel_tries=0
+  while ! $KUBECTL get crd opentelemetrycollectors.opentelemetry.io &>/dev/null 2>&1; do
+    _otel_tries=$((_otel_tries + 1))
+    if [ $_otel_tries -ge 60 ]; then
+      log_warn "OpenTelemetry CRD not ready after 5m — deploy-otelcollector.sh will retry later"
+      break
+    fi
+    sleep 5
+  done
+  if $KUBECTL get crd opentelemetrycollectors.opentelemetry.io &>/dev/null 2>&1; then
+    log_success "OpenTelemetry Operator ready"
+  fi
+fi
+echo ""
+
+# ============================================================================
+# Step 8: Deploy MLflow (standalone, lifecycle-decoupled from Kagenti)
+# ============================================================================
+log_info "Step 8: Deploy MLflow Tracking Server"
 
 if $KUBECTL get deployment mlflow-deployment -n mlflow &>/dev/null 2>&1; then
   log_info "MLflow already deployed — skipping"
@@ -1227,9 +1275,9 @@ fi
 echo ""
 
 # ============================================================================
-# Step 8: Verify Helm releases
+# Step 9: Verify Helm releases
 # ============================================================================
-log_info "Step 8: Verify Helm releases"
+log_info "Step 9: Verify Helm releases"
 echo ""
 
 VERIFY_FAILED=false
@@ -1265,9 +1313,9 @@ if $VERIFY_FAILED; then
 fi
 
 # ============================================================================
-# Step 9: Show access info
+# Step 10: Show access info
 # ============================================================================
-log_info "Step 9: Access info"
+log_info "Step 10: Access info"
 echo ""
 
 log_info "Kagenti pods:"

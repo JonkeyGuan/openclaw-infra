@@ -58,11 +58,11 @@ spec:
             configMapKeyRef:
               name: openclaw-agent-secret
               key: OPENCLAW_GATEWAY_TOKEN
-        - name: ANTHROPIC_API_KEY
+        - name: MODEL_API_KEY
           valueFrom:
             configMapKeyRef:
               name: openclaw-agent-secret
-              key: ANTHROPIC_API_KEY
+              key: MODEL_API_KEY
               optional: true
       securityContext:
         runAsUser: 1000
