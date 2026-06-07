@@ -10,6 +10,7 @@ openclaw-config-export.json
 # Build artifacts
 *.log
 /tmp/
+pptx/
 
 # OS files
 .DS_Store
