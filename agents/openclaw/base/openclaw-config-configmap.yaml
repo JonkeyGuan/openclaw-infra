@@ -121,7 +121,7 @@ data:
             "primary": "local/qwen3-14b"
           },
           "compaction": {
-            "reserveTokensFloor": 8000
+            "reserveTokensFloor": 20000
           }
         },
         "list": [

@@ -152,9 +152,16 @@ class A2ABridgeHandler(BaseHTTPRequestHandler):
         content_length = int(self.headers.get("Content-Length", 0))
         raw = self.rfile.read(content_length)
 
+        self.log_message("POST %s Content-Length=%d body=%d bytes",
+                         self.path, content_length, len(raw))
+        if len(raw) < 2000:
+            self.log_message("Raw body: %s", raw.decode("utf-8", errors="replace"))
+
         try:
             req = json.loads(raw)
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as e:
+            self.log_message("JSON parse error: %s (body preview: %r)",
+                             e, raw[:200])
             self._send_json(400, a2a_error(None, -32700, "Parse error"))
             return
 

@@ -85,7 +85,7 @@ data:
           "workspace": "~/.openclaw/workspace",
           "model": {"primary": "${DEFAULT_AGENT_MODEL}"},
           "compaction": {
-            "reserveTokensFloor": 8000
+            "reserveTokensFloor": 20000
           }
         },
         "list": [
